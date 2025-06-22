@@ -35,6 +35,93 @@ export default function AgentChat() {
     }
   };
 
+  const renderToolInvocations = (parts: unknown) => {
+    if (!parts || !Array.isArray(parts)) return null;
+
+    const toolParts = parts.filter(
+      (part: any) => part.type === 'tool-invocation' && part.toolInvocation
+    );
+
+    if (toolParts.length === 0) return null;
+
+    return (
+      <div className='mt-3 space-y-2'>
+        {toolParts.map((part: any, index: number) => {
+          const tool = part.toolInvocation;
+          return (
+            <div
+              key={index}
+              className='bg-blue-50 border border-blue-200 rounded-lg p-3'
+            >
+              <div className='flex items-center space-x-2 mb-2'>
+                <div className='w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center'>
+                  <svg
+                    className='w-3 h-3 text-white'
+                    fill='currentColor'
+                    viewBox='0 0 20 20'
+                  >
+                    <path
+                      fillRule='evenodd'
+                      d='M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z'
+                      clipRule='evenodd'
+                    />
+                  </svg>
+                </div>
+                <span className='text-sm font-medium text-blue-800'>
+                  🔧 {tool.toolName || 'Tool'}
+                </span>
+                <span
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    tool.state === 'result'
+                      ? 'bg-green-100 text-green-800'
+                      : tool.state === 'call'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : tool.state === 'partial-call'
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {tool.state || 'executing'}
+                </span>
+              </div>
+
+              {tool.args &&
+                typeof tool.args === 'object' &&
+                Object.keys(tool.args).length > 0 && (
+                  <div className='text-xs text-blue-700 mb-2'>
+                    <span className='font-medium'>Parameters:</span>{' '}
+                    <code className='bg-blue-100 px-1 rounded'>
+                      {JSON.stringify(tool.args, null, 2)}
+                    </code>
+                  </div>
+                )}
+
+              {tool.result && (
+                <div className='text-xs text-green-700'>
+                  <span className='font-medium'>Result:</span>{' '}
+                  <div className='bg-green-50 p-2 rounded mt-1 max-h-32 overflow-y-auto'>
+                    <pre className='whitespace-pre-wrap'>
+                      {(() => {
+                        try {
+                          if (typeof tool.result === 'string') {
+                            return tool.result;
+                          }
+                          return JSON.stringify(tool.result, null, 2);
+                        } catch {
+                          return 'Unable to display result';
+                        }
+                      })()}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className='flex flex-col h-[90vh] max-w-2xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-200'>
       {/* Header */}
@@ -115,6 +202,12 @@ export default function AgentChat() {
               <div className='text-sm leading-relaxed whitespace-pre-wrap'>
                 {message.content}
               </div>
+
+              {/* Show tool calls for assistant messages */}
+              {message.role === 'assistant' &&
+                message.parts &&
+                renderToolInvocations(message.parts)}
+
               <div
                 className={`text-xs mt-2 ${
                   message.role === 'user' ? 'text-blue-100' : 'text-gray-500'

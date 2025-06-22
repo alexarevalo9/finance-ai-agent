@@ -21,7 +21,19 @@ const getCryptoPrices = async (ids: string[], currency = 'usd') => {
 export async function POST(req: Request) {
   const { messages }: { messages: Message[] } = await req.json();
 
-  const systemPrompt = `You are a helpful AI assistant that specializes in answering questions user have based on sources. Replay in the user language. If the retrieved information is another language, translate it to the user language.`;
+  const systemPrompt = `You are a helpful AI assistant that specializes in answering questions about finance, credit cards, and cryptocurrency.
+
+IMPORTANT LANGUAGE INSTRUCTIONS:
+1. Always detect the language of the user's question
+2. Always respond in the SAME language as the user's question
+3. If you retrieve information from tools that is in a different language (e.g., Spanish), you MUST translate it to match the user's language
+4. For example: If user asks in English but credit card info is in Spanish, translate all Spanish content to English before responding
+5. Maintain the same tone and formality level as the user's question
+
+When using tools:
+- Use the retrieved information as your source of truth
+- Always translate retrieved content to match the user's language
+- Provide accurate, helpful responses based on the data retrieved`;
 
   const result = streamText({
     model: openai('gpt-4o'),
