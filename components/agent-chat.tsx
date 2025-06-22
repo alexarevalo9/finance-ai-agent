@@ -239,7 +239,7 @@ export default function AgentChat() {
         </div>
 
         <div className='mt-2 text-xs text-gray-400 text-center'>
-          Press Enter to send • Shift + Enter for new line
+          Press Enter to send
         </div>
       </div>
     </div>
