@@ -139,7 +139,7 @@ export default function AgentChat() {
           <div>
             <h3 className='font-semibold text-lg'>Finance AI Assistant</h3>
             <p className='text-sm text-white/80'>
-              Ask about bitcoin, credit cards, and more
+              Ask about crypto prices, credit cards, and more
             </p>
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function AgentChat() {
             </div>
             <p className='text-lg font-medium mb-2'>Start a conversation</p>
             <p className='text-sm'>
-              Ask me anything about finance, crypto, or financial planning!
+              Ask me anything about crypto, credit cards, or financial planning!
             </p>
           </div>
         )}
