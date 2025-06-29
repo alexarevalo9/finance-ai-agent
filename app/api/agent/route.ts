@@ -1,7 +1,9 @@
-import { ToolInvocation, streamText } from 'ai';
+import { ToolInvocation, experimental_createMCPClient, streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
+
 import { z } from 'zod';
 import { RetrievalService } from '@/lib/retrieval';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -18,28 +20,54 @@ const getCryptoPrices = async (ids: string[], currency = 'usd') => {
   return result;
 };
 
+const truncateResponse = (
+  response: unknown,
+  maxLength: number = 2000
+): string => {
+  const str =
+    typeof response === 'string' ? response : JSON.stringify(response, null, 2);
+  if (str.length <= maxLength) return str;
+  return (
+    str.substring(0, maxLength) + '\n\n... (response truncated due to length)'
+  );
+};
+
 export async function POST(req: Request) {
   const { messages }: { messages: Message[] } = await req.json();
 
-  const systemPrompt = `You are a helpful AI assistant that specializes in answering questions about finance, credit cards, and cryptocurrency.
+  let mcpClient:
+    | Awaited<ReturnType<typeof experimental_createMCPClient>>
+    | undefined;
 
-IMPORTANT LANGUAGE INSTRUCTIONS:
-1. Always detect the language of the user's question
-2. Always respond in the SAME language as the user's question
-3. If you retrieve information from tools that is in a different language (e.g., Spanish), you MUST translate it to match the user's language
-4. For example: If user asks in English but credit card info is in Spanish, translate all Spanish content to English before responding
-5. Maintain the same tone and formality level as the user's question
+  let mcpTools: Record<string, unknown> = {};
 
-When using tools:
-- Use the retrieved information as your source of truth
-- Always translate retrieved content to match the user's language
-- Provide accurate, helpful responses based on the data retrieved`;
+  try {
+    mcpClient = await experimental_createMCPClient({
+      transport: new StreamableHTTPClientTransport(
+        new URL(
+          'https://server.smithery.ai/@MCP-100/stock-market-server/mcp?api_key=9bb3cb2e-7614-489d-ad60-d03626c7ecbb'
+        )
+      ),
+    });
+
+    mcpTools = await mcpClient.tools();
+    console.log('Successfully connected to Smithery stock market server');
+    console.log('Available MCP tools:', Object.keys(mcpTools));
+  } catch (error) {
+    console.error('Failed to connect to MCP server:', error);
+    // Continue without MCP tools if connection fails
+  }
+
+  const systemPrompt = `You are a finance AI assistant specializing in credit cards, stocks, and cryptocurrency. Always respond in the user's language and translate any retrieved content to match their language.`;
 
   const result = streamText({
-    model: openai('gpt-4o'),
+    model: openai('gpt-4o-mini'), // Use mini version for better token efficiency
     system: systemPrompt,
     messages,
+    maxSteps: 3, // Reduce steps to manage token usage
+    maxTokens: 1000, // Limit response length
     tools: {
+      ...mcpTools,
       getBancoPichinchaCreditCardsInfo: {
         description:
           'This will pull information from credit cards from banco pichincha',
@@ -51,7 +79,7 @@ When using tools:
         execute: async ({ query }) => {
           const retrievalService = new RetrievalService();
           const documents = await retrievalService.searchDocuments(query);
-          return documents;
+          return truncateResponse(documents);
         },
       },
       getCryptoPrices: {
@@ -64,7 +92,7 @@ When using tools:
         }),
         execute: async ({ ids }) => {
           const prices = await getCryptoPrices(ids);
-          return prices;
+          return truncateResponse(prices);
         },
       },
     },
@@ -72,6 +100,16 @@ When using tools:
       console.log(step.response);
       console.log('toolCalls==>', step.toolCalls);
       console.log('toolResults==>', step.toolResults);
+    },
+    onFinish: async () => {
+      if (mcpClient) {
+        try {
+          await mcpClient.close();
+          console.log('MCP client connection closed');
+        } catch (error) {
+          console.error('Error closing MCP client:', error);
+        }
+      }
     },
   });
 
